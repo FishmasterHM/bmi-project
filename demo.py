@@ -83,6 +83,9 @@ def run_demo():
                 for i, d in enumerate(detected):
                     label = str(predictions[i][0])
                     draw_label(img, (d.left(), d.top()), label)
+            else:
+                label = str(predictions[0][0])
+                draw_label(img, (detected[0].left(), detected[0].top()), label)
             cv2.imshow("aa", img)
             cv2.waitKey(0)
             # else:
