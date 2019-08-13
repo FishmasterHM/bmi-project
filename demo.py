@@ -1,13 +1,12 @@
-
+import glob
 import cv2
 import sys
 import dlib
 import numpy as np
 from contextlib import contextmanager
-import urllib2
 from model import get_model
 import config
-
+import os
 
 
 
@@ -15,6 +14,7 @@ def get_trained_model():
     weights_file = 'bmi_model_weights.h5'
     model = get_model(ignore_age_weights=True)
     model.load_weights(weights_file)
+
     return model
 
 
@@ -46,24 +46,27 @@ def yield_images_from_camera():
             yield img
 
 
+def load_img_from_fold(ipath):
+    for file in glob.glob(os.path.join(ipath, '*')):
+        img = cv2.imread(file)
+        yield img
+
 def run_demo():
     args = sys.argv[1:]
     multiple_targets = '--multiple' in args
     single_or_multiple = 'multiple faces' if multiple_targets else 'single face'
     model = get_trained_model()
-    print 'Loading model to detect BMI of %s...' % single_or_multiple
+    print('Loading model to detect BMI of %s...' % single_or_multiple)
 
     NUMBER_OF_FRAMES_IN_AVG = 20
     last_seen_bmis = []
     detector = dlib.get_frontal_face_detector()
 
-    for img in yield_images_from_camera():
+    for img in load_img_from_fold(r'.\input'):
         input_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img_h, img_w, _ = np.shape(input_img)
-
         detected = detector(input_img, 1)
         faces = np.empty((len(detected), config.RESNET50_DEFAULT_IMG_WIDTH, config.RESNET50_DEFAULT_IMG_WIDTH, 3))
-
         if len(detected) > 0:
             for i, d in enumerate(detected):
                 x1, y1, x2, y2, w, h = d.left(), d.top(), d.right() + 1, d.bottom() + 1, d.width(), d.height()
@@ -75,26 +78,23 @@ def run_demo():
                 faces[i, :, :, :] = cv2.resize(img[yw1:yw2 + 1, xw1:xw2 + 1, :], (config.RESNET50_DEFAULT_IMG_WIDTH, config.RESNET50_DEFAULT_IMG_WIDTH)) / 255.00
 
             predictions = model.predict(faces)
-
+            print(predictions)
             if multiple_targets:
                 for i, d in enumerate(detected):
                     label = str(predictions[i][0])
                     draw_label(img, (d.left(), d.top()), label)
-            else:
-                last_seen_bmis.append(predictions[0])
-                if len(last_seen_bmis) > NUMBER_OF_FRAMES_IN_AVG:
-                    last_seen_bmis.pop(0)
-                elif len(last_seen_bmis) < NUMBER_OF_FRAMES_IN_AVG:
-                    continue
-                avg_bmi = sum(last_seen_bmis) / float(NUMBER_OF_FRAMES_IN_AVG)
-                label = str(avg_bmi)
-                draw_label(img, (d.left(), d.top()), label)
-
-        cv2.imshow('result', img)
-        key = cv2.waitKey(30)
-
-        if key == 27:  # ESC
-            break
+            cv2.imshow("aa", img)
+            cv2.waitKey(0)
+            # else:
+            #     last_seen_bmis.append(predictions[0])
+            #     if len(last_seen_bmis) > NUMBER_OF_FRAMES_IN_AVG:
+            #         last_seen_bmis.pop(0)
+            #     elif len(last_seen_bmis) < NUMBER_OF_FRAMES_IN_AVG:
+            #         continue
+            #     avg_bmi = sum(last_seen_bmis) / float(NUMBER_OF_FRAMES_IN_AVG)
+            #     label = str(avg_bmi)
+            #
+            #     draw_label(img, (d.left(), d.top()), label)
 
 
 if __name__ == '__main__':
